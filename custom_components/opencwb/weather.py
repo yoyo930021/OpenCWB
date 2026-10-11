@@ -80,7 +80,11 @@ class OpenCWBWeather(SingleCoordinatorWeatherEntity[WeatherUpdateCoordinator]):
             FORECAST_MODE_DAILY,
             FORECAST_MODE_ONECALL_DAILY,
         ):
-            self._attr_supported_features = WeatherEntityFeature.FORECAST_DAILY
+            # The "daily" datasets of CWA have one entry per 12 hours.
+            self._attr_supported_features = (
+                WeatherEntityFeature.FORECAST_DAILY
+                | WeatherEntityFeature.FORECAST_TWICE_DAILY
+            )
         else:  # FORECAST_MODE_DAILY or FORECAST_MODE_ONECALL_HOURLY
             self._attr_supported_features = WeatherEntityFeature.FORECAST_HOURLY
 
@@ -159,6 +163,11 @@ class OpenCWBWeather(SingleCoordinatorWeatherEntity[WeatherUpdateCoordinator]):
     @callback
     def _async_forecast_daily(self) -> list[Forecast] | None:
         """Return the daily forecast in native units."""
+        return self.forecast
+
+    @callback
+    def _async_forecast_twice_daily(self) -> list[Forecast] | None:
+        """Return the twice daily forecast in native units."""
         return self.forecast
 
     @callback

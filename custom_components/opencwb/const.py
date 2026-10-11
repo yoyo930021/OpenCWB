@@ -2,19 +2,13 @@
 # pylint: disable=line too long
 from homeassistant.components.weather import (
     ATTR_CONDITION_CLOUDY,
-    ATTR_CONDITION_EXCEPTIONAL,
     ATTR_CONDITION_FOG,
-    ATTR_CONDITION_HAIL,
-    ATTR_CONDITION_LIGHTNING,
     ATTR_CONDITION_LIGHTNING_RAINY,
     ATTR_CONDITION_PARTLYCLOUDY,
-    ATTR_CONDITION_POURING,
     ATTR_CONDITION_RAINY,
     ATTR_CONDITION_SNOWY,
     ATTR_CONDITION_SNOWY_RAINY,
     ATTR_CONDITION_SUNNY,
-    ATTR_CONDITION_WINDY,
-    ATTR_CONDITION_WINDY_VARIANT,
     ATTR_FORECAST_CONDITION,
     ATTR_FORECAST_PRECIPITATION,
     ATTR_FORECAST_PRECIPITATION_PROBABILITY,
@@ -129,26 +123,39 @@ LANGUAGES = [
     "en",
     "zh_tw",
 ]
-WEATHER_CODE_SUNNY_OR_CLEAR_NIGHT = 0
+# CWA forecast weather codes (Wx 01-42, code 40 is not defined), see
+# https://www.cwa.gov.tw/V8/C/K/Weather_Icon.html
+# Precipitation takes precedence over fog, thunder over plain rain.
+WEATHER_CODE_SUNNY_OR_CLEAR_NIGHT = 1  # 晴天
 CONDITION_CLASSES = {
-    ATTR_CONDITION_CLOUDY: [7],
-    ATTR_CONDITION_FOG: [
-        24, 25, 26, 27, 28, 31, 32, 33, 34, 35, 36, 38, 39, 41],
-    ATTR_CONDITION_HAIL: [42],
-    ATTR_CONDITION_LIGHTNING: [15, 16, 17],
-    ATTR_CONDITION_LIGHTNING_RAINY: [18],
-    ATTR_CONDITION_PARTLYCLOUDY: [4, 5, 6],
-    ATTR_CONDITION_POURING: [18],
+    ATTR_CONDITION_SUNNY: [1],  # 晴天
+    # 晴時多雲, 多雲時晴, 多雲
+    ATTR_CONDITION_PARTLYCLOUDY: [2, 3, 4],
+    # 多雲時陰, 陰時多雲, 陰天
+    ATTR_CONDITION_CLOUDY: [5, 6, 7],
+    # 雨, 陣雨, 短暫雨, 局部雨 (38, 39 and 31, 32: with fog)
     ATTR_CONDITION_RAINY: [
-        8, 9, 10, 11, 12, 13, 14, 19, 20, 21, 22, 29, 30, 31],
-    ATTR_CONDITION_SNOWY: [42],
+        8, 9, 10, 11, 12, 13, 14, 19, 20, 29, 30, 31, 32, 38, 39],
+    # 雷雨, 雷陣雨, 陣雨或雷雨 (35, 36, 41: with fog)
+    ATTR_CONDITION_LIGHTNING_RAINY: [
+        15, 16, 17, 18, 21, 22, 33, 34, 35, 36, 41],
+    # 雨或雪, 雪 (37: with fog)
     ATTR_CONDITION_SNOWY_RAINY: [23, 37],
-    ATTR_CONDITION_SUNNY: [1],
-    ATTR_CONDITION_WINDY: [2],
-    ATTR_CONDITION_WINDY_VARIANT: [3],
-    ATTR_CONDITION_EXCEPTIONAL: [
-        40
-    ],
+    # 有霧, 晨霧
+    ATTR_CONDITION_FOG: [24, 25, 26, 27, 28],
+    # 下雪, 積冰, 暴風雪
+    ATTR_CONDITION_SNOWY: [42],
+}
+# CWA reports the wind direction as text, Home Assistant expects degrees.
+WIND_BEARINGS = {
+    "偏北風": 0,
+    "東北風": 45,
+    "偏東風": 90,
+    "東南風": 135,
+    "偏南風": 180,
+    "西南風": 225,
+    "偏西風": 270,
+    "西北風": 315,
 }
 WEATHER_SENSOR_TYPES = {
     ATTR_API_WEATHER: {SENSOR_NAME: "Weather"},

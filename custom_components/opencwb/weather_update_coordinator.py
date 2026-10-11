@@ -1,6 +1,6 @@
 """Weather data coordinator for the OpenCWB (OCWB) service."""
 # pylint: disable=line too long
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 import logging
 
 import async_timeout
@@ -8,8 +8,8 @@ from .core.commons.exceptions import APIRequestError, UnauthorizedError
 
 from homeassistant.components.weather import (
     ATTR_CONDITION_CLEAR_NIGHT,
-    ATTR_CONDITION_SUNNY,
     ATTR_FORECAST_CONDITION,
+    ATTR_FORECAST_IS_DAYTIME,
     ATTR_FORECAST_PRECIPITATION,
     ATTR_FORECAST_PRECIPITATION_PROBABILITY,
     ATTR_FORECAST_PRESSURE,
@@ -55,11 +55,13 @@ from .const import (
     FORECAST_MODE_ONECALL_DAILY,
     FORECAST_MODE_ONECALL_HOURLY,
     WEATHER_CODE_SUNNY_OR_CLEAR_NIGHT,
+    WIND_BEARINGS,
 )
 
 _LOGGER = logging.getLogger(__name__)
 
 WEATHER_UPDATE_INTERVAL = timedelta(minutes=15)
+TAIWAN_TIME_ZONE = timezone(timedelta(hours=8))
 
 
 class WeatherUpdateCoordinator(DataUpdateCoordinator):
@@ -150,7 +152,8 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator):
             ATTR_API_DEW_POINT: self._fmt_dewpoint(current_weather.dewpoint),
             ATTR_API_PRESSURE: current_weather.pressure.get("press"),
             ATTR_API_HUMIDITY: current_weather.humidity,
-            ATTR_API_WIND_BEARING: current_weather.wind().get("deg"),
+            ATTR_API_WIND_BEARING: self._get_wind_bearing(
+                current_weather.wind().get("deg")),
             ATTR_API_WIND_GUST: current_weather.wind().get("gust"),
             ATTR_API_WIND_SPEED: current_weather.wind().get("speed"),
             ATTR_API_CLOUDS: current_weather.clouds,
@@ -161,7 +164,7 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator):
             ),
             ATTR_API_WEATHER: current_weather.detailed_status,
             ATTR_API_CONDITION: self._get_condition(
-                current_weather.weather_code),
+                current_weather.weather_code, sun.is_up(self.hass)),
             ATTR_API_UV_INDEX: current_weather.uvi,
             ATTR_API_WEATHER_CODE: current_weather.weather_code,
             ATTR_API_FORECAST: forecast_weather,
@@ -180,6 +183,7 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator):
         ]
 
     def _convert_forecast(self, entry):
+        is_daytime = self._is_daytime(entry.reference_time("unix"))
         forecast = {
             ATTR_FORECAST_TIME: dt.utc_from_timestamp(
                 entry.reference_time("unix")
@@ -192,10 +196,12 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator):
             ),
             ATTR_FORECAST_PRESSURE: entry.pressure.get("press"),
             ATTR_FORECAST_WIND_SPEED: entry.wind().get("speed"),
-            ATTR_FORECAST_WIND_BEARING: entry.wind().get("deg"),
+            ATTR_FORECAST_WIND_BEARING: self._get_wind_bearing(
+                entry.wind().get("deg")),
             ATTR_API_FORECAST_CONDITION: self._get_condition(
-                entry.weather_code, entry.reference_time("unix")
+                entry.weather_code, is_daytime
             ),
+            ATTR_FORECAST_IS_DAYTIME: is_daytime,
             ATTR_API_FORECAST_CLOUDS: entry.clouds,
             ATTR_API_FORECAST_FEELS_LIKE_TEMPERATURE: entry.temperature("celsius").get(
                 "feels_like"
@@ -270,18 +276,24 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator):
             return "Snow"
         return "None"
 
-    def _get_condition(self, weather_code, timestamp=None):
-        """Get weather condition from weather data."""
-        if weather_code == WEATHER_CODE_SUNNY_OR_CLEAR_NIGHT:
+    @staticmethod
+    def _get_wind_bearing(wind_direction):
+        """Convert the wind direction text of CWA to degrees."""
+        return WIND_BEARINGS.get(wind_direction, wind_direction)
 
-            if timestamp:
-                timestamp = dt.utc_from_timestamp(timestamp)
+    @staticmethod
+    def _is_daytime(timestamp):
+        """Return if a forecast period starts in the daytime (06:00-18:00)."""
+        return 6 <= datetime.fromtimestamp(timestamp, TAIWAN_TIME_ZONE).hour < 18
 
-            if sun.is_up(self.hass, timestamp):
-                return ATTR_CONDITION_SUNNY
+    @staticmethod
+    def _get_condition(weather_code, is_daytime):
+        """Get weather condition from the CWA weather code."""
+        if weather_code == WEATHER_CODE_SUNNY_OR_CLEAR_NIGHT and not is_daytime:
             return ATTR_CONDITION_CLEAR_NIGHT
 
-        return [k for k, v in CONDITION_CLASSES.items() if weather_code in v][0]
+        return next(
+            (k for k, v in CONDITION_CLASSES.items() if weather_code in v), None)
 
 
 class LegacyWeather:
