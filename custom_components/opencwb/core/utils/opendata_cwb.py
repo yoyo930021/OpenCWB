@@ -219,7 +219,7 @@ class OpendataCWB:
         last_pop = value["current"]["pop"]
 
         value[mode] = []
-        for i in range(1, length):
+        for i in range(length):
             value[mode].append(OpendataCWB._get_weather(
                 record[location][0][weatherelement], i, wx_index, last_pop, mode))
             last_pop = value["current"]["pop"]
